@@ -1,6 +1,9 @@
 'use strict';
 
 var L = require('leaflet');
+var surfaceLayer = require('./surface_layer');
+
+var localSurfaceApiUrl = (typeof window !== 'undefined' && window.OSRM_SURFACE_API_URL) ? window.OSRM_SURFACE_API_URL : null;
 
 // Load runtime configuration (from window.osrmConfig set by index.html)
 // In Node/test environments, window won't exist, so use empty config
@@ -36,7 +39,8 @@ var streets = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager
   bike = L.tileLayer('https://tile.waymarkedtrails.org/cycling/{z}/{x}/{y}.png', {
     attribution: waymarkedtrailsAttribution
   }),
-  small_components = L.tileLayer('https://tools.geofabrik.de/osmi/tiles/routing/{z}/{x}/{y}.png', {});
+  small_components = L.tileLayer('https://tools.geofabrik.de/osmi/tiles/routing/{z}/{x}/{y}.png', {}),
+  surface_quality = surfaceLayer.createSurfaceLayer({ apiUrl: localSurfaceApiUrl });
 
 /**
  * Parse center coordinates from the runtime config (`OSRM_CENTER` env var).
@@ -48,7 +52,7 @@ var streets = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager
  * @returns {L.LatLng} The parsed or fallback center coordinate.
  */
 function parseCenter() {
-  var defaultCenterStr = '38.8995,-77.0269';
+  var defaultCenterStr = '54.3520,18.6466';
   var centerStr = config.OSRM_CENTER || defaultCenterStr;
   var parts = centerStr.split(/[, ]+/);
   var lat;
@@ -494,28 +498,6 @@ var leafletOptions = {
   get services() {
     return buildServices();
   },
-
-  /**
-   * Base tile layers shown in the Leaflet layer-control radio buttons.
-   *
-   * Format: an array containing a single object that maps display names
-   * (shown in the UI) to `L.TileLayer` instances. This is the standard
-   * Leaflet format for the first argument to `L.control.layers()`.
-   *
-   * **Default base layers:**
-   * - **Streets** — CartoDB Voyager (raster tiles, max zoom 19)
-   * - **Outdoors** — OpenTopoMap (max zoom 17)
-   * - **Satellite** — ESRI World Imagery (max zoom 19)
-   * - **openstreetmap.org** — Standard OSM tile layer
-   * - **openstreetmap.de** — German OSM tile layer
-   *
-   * **Customizing:** To add or replace base layers, define a `L.tileLayer`
-   * and add an entry to this object. To change the *default* layer, set
-   * `OSRM_DEFAULT_LAYER` to one of the layer keys (`layerMap` in this file)
-   * or edit `defaultState.layer`.
-   *
-   * @type {Array<Object<string, L.TileLayer>>}
-   */
   layer: [{
     'Streets': streets,
     'Outdoors': outdoors,
@@ -545,7 +527,8 @@ var leafletOptions = {
   overlay: {
     'Hiking': hiking,
     'Bike': bike,
-    'Small Components': small_components
+    'Small Components': small_components,
+    'Surface Quality': surface_quality
   },
   /**
    * Geocoding (address search) endpoint configuration.

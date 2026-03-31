@@ -189,3 +189,17 @@ For debug tiles showing speeds and small components available at `/debug` adjust
   "tiles" : ["http://localhost:5000/tile/v1/car/tile({x},{y},{z}).mvt"]
 }
 ```
+
+## Surface Quality Layer (offline)
+
+The `Surface Quality` overlay does not use OSRM route files directly. It needs OSM way tags (`surface`, `tracktype`) from an Overpass-compatible API.
+
+To keep this fully offline, configure a local endpoint before loading the app:
+
+```html
+<script>
+  window.OSRM_SURFACE_API_URL = 'http://127.0.0.1:12345/api/interpreter';
+</script>
+```
+
+If no local endpoint is configured, the overlay stays disabled and no external API requests are made.

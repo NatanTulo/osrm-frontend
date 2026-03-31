@@ -65,7 +65,6 @@ var ItineraryBuilder = require('./itinerary_builder')(mergedOptions.language);
 
 var mapLayer = leafletOptions.layer;
 var overlay = leafletOptions.overlay;
-
 // Track whether the Bike overlay was auto-enabled by profile selection
 var bikeOverlayOriginallyActive = false;
 var baselayer;
@@ -168,6 +167,9 @@ if (_urlProfile !== undefined && _urlProfile !== null) {
 
 var _initResult = initialLayers.determineInitialLayers(baselayer, overlay, services, _initProfileIndex, !!ls.get('getOverlay'));
 var layers = _initResult.layers;
+if (ls.get('getOverlay') && overlay['Surface Quality'] && Array.isArray(layers) && layers.indexOf(overlay['Surface Quality']) === -1) {
+  layers.push(overlay['Surface Quality']);
+}
 var bikeOverlayAutoActivated = _initResult.bikeOverlayAutoActivated;
 var map = L.map('map', {
   zoomControl: true,
