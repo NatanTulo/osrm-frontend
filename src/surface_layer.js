@@ -3,16 +3,16 @@
 var L = require('leaflet');
 
 var LEGEND_ITEMS = [
-  { key: 'smooth', label: 'Asfalt / beton / paved' },
-  { key: 'cobbles', label: 'Kostka / bruk' },
-  { key: 'compact', label: 'Utwardzone (compacted)' },
-  { key: 'gravel', label: 'Szuter / grubszy żwir' },
-  { key: 'rough', label: 'Grunt / piach / błoto' },
-  { key: 'unknown', label: 'Brak danych' }
+  { key: 'smooth', label: 'Asphalt / concrete / paved' },
+  { key: 'cobbles', label: 'Cobblestone / sett' },
+  { key: 'compact', label: 'Compacted' },
+  { key: 'gravel', label: 'Gravel / coarse gravel' },
+  { key: 'rough', label: 'Ground / sand / mud' },
+  { key: 'unknown', label: 'No data' }
 ];
 
 var EXTRA_FILTER_ITEMS = [
-  { key: 'onlyBikePed', label: 'Tylko chodniki / drogi i ścieżki rowerowe' }
+  { key: 'onlyBikePed', label: 'Only sidewalks / bicycle roads and paths' }
 ];
 
 var DYNAMIC_LINE_TAG_KEYS = [
@@ -30,100 +30,100 @@ var DYNAMIC_LINE_TAG_KEYS = [
 ];
 
 var DYNAMIC_TAG_GROUP_LABELS = {
-  route: 'Trasy i linie transportowe',
-  power: 'Energetyka',
-  barrier: 'Bariery',
-  man_made: 'Obiekty techniczne',
-  natural: 'Elementy naturalne',
-  boundary: 'Granice',
-  landuse: 'Użytkowanie terenu'
+  route: 'Routes and transport lines',
+  power: 'Power infrastructure',
+  barrier: 'Barriers',
+  man_made: 'Man-made structures',
+  natural: 'Natural features',
+  boundary: 'Boundaries',
+  landuse: 'Land use'
 };
 
 var LINE_TYPE_GROUPS = {
   bikeped: {
-    title: 'Rower i piesi',
+    title: 'Bike and pedestrians',
     options: [
-      { tagKey: 'highway', value: 'cycleway', label: 'Drogi rowerowe' },
-      { tagKey: 'highway', value: 'track', label: 'Drogi gruntowe i techniczne' },
-      { tagKey: 'highway', value: 'path', label: 'Ścieżki' },
-      { tagKey: 'highway', value: 'footway', label: 'Chodniki' },
-      { tagKey: 'highway', value: 'pedestrian', label: 'Deptaki' },
-      { tagKey: 'highway', value: 'steps', label: 'Schody' }
+      { tagKey: 'highway', value: 'cycleway', label: 'Bicycle roads' },
+      { tagKey: 'highway', value: 'track', label: 'Tracks and service roads' },
+      { tagKey: 'highway', value: 'path', label: 'Paths' },
+      { tagKey: 'highway', value: 'footway', label: 'Sidewalks' },
+      { tagKey: 'highway', value: 'pedestrian', label: 'Pedestrian streets' },
+      { tagKey: 'highway', value: 'steps', label: 'Steps' }
     ]
   },
   local: {
-    title: 'Drogi lokalne',
+    title: 'Local roads',
     options: [
-      { tagKey: 'highway', value: 'residential', label: 'Ulice osiedlowe' },
-      { tagKey: 'highway', value: 'unclassified', label: 'Drogi lokalne' },
-      { tagKey: 'highway', value: 'living_street', label: 'Strefy zamieszkania' },
-      { tagKey: 'highway', value: 'service', label: 'Dojazdy i serwisowe' }
+      { tagKey: 'highway', value: 'residential', label: 'Residential streets' },
+      { tagKey: 'highway', value: 'unclassified', label: 'Local access roads' },
+      { tagKey: 'highway', value: 'living_street', label: 'Living streets' },
+      { tagKey: 'highway', value: 'service', label: 'Driveways and service roads' }
     ]
   },
   rail: {
-    title: 'Kolej i tramwaje',
+    title: 'Rail and tram',
     options: [
-      { tagKey: 'railway', value: 'rail', label: 'Linie kolejowe' },
-      { tagKey: 'railway', value: 'tram', label: 'Linie tramwajowe' },
-      { tagKey: 'railway', value: 'light_rail', label: 'Kolej lekka' },
-      { tagKey: 'railway', value: 'subway', label: 'Metro' },
-      { tagKey: 'railway', value: 'narrow_gauge', label: 'Kolej wąskotorowa' },
+      { tagKey: 'railway', value: 'rail', label: 'Rail lines' },
+      { tagKey: 'railway', value: 'tram', label: 'Tram lines' },
+      { tagKey: 'railway', value: 'light_rail', label: 'Light rail' },
+      { tagKey: 'railway', value: 'subway', label: 'Subway' },
+      { tagKey: 'railway', value: 'narrow_gauge', label: 'Narrow gauge rail' },
       { tagKey: 'railway', value: 'monorail', label: 'Monorail' }
     ]
   },
   ferry: {
-    title: 'Przeprawy promowe',
+    title: 'Ferry crossings',
     options: [
-      { tagKey: 'route', value: 'ferry', label: 'Trasy promowe' }
+      { tagKey: 'route', value: 'ferry', label: 'Ferry routes' }
     ]
   },
   main: {
-    title: 'Drogi główne',
+    title: 'Main roads',
     options: [
-      { tagKey: 'highway', value: 'primary', label: 'Główne' },
-      { tagKey: 'highway', value: 'primary_link', label: 'Łączniki dróg głównych' },
-      { tagKey: 'highway', value: 'secondary', label: 'Drugorzędne' },
-      { tagKey: 'highway', value: 'secondary_link', label: 'Łączniki dróg drugorzędnych' },
-      { tagKey: 'highway', value: 'tertiary', label: 'Lokalnie ważne' },
-      { tagKey: 'highway', value: 'tertiary_link', label: 'Łączniki dróg lokalnie ważnych' }
+      { tagKey: 'highway', value: 'primary', label: 'Primary' },
+      { tagKey: 'highway', value: 'primary_link', label: 'Primary links' },
+      { tagKey: 'highway', value: 'secondary', label: 'Secondary' },
+      { tagKey: 'highway', value: 'secondary_link', label: 'Secondary links' },
+      { tagKey: 'highway', value: 'tertiary', label: 'Tertiary' },
+      { tagKey: 'highway', value: 'tertiary_link', label: 'Tertiary links' }
     ]
   },
   fast: {
-    title: 'Szybki ruch',
+    title: 'High-speed roads',
     options: [
-      { tagKey: 'highway', value: 'motorway', label: 'Autostrady' },
-      { tagKey: 'highway', value: 'motorway_link', label: 'Łączniki autostrad' },
-      { tagKey: 'highway', value: 'trunk', label: 'Drogi ekspresowe' },
-      { tagKey: 'highway', value: 'trunk_link', label: 'Łączniki dróg ekspresowych' }
+      { tagKey: 'highway', value: 'motorway', label: 'Motorways' },
+      { tagKey: 'highway', value: 'motorway_link', label: 'Motorway links' },
+      { tagKey: 'highway', value: 'trunk', label: 'Trunk roads' },
+      { tagKey: 'highway', value: 'trunk_link', label: 'Trunk links' }
     ]
   },
   water: {
-    title: 'Cieki wodne',
+    title: 'Waterways',
     options: [
-      { tagKey: 'waterway', value: 'river', label: 'Rzeki' },
-      { tagKey: 'waterway', value: 'canal', label: 'Kanały' },
-      { tagKey: 'waterway', value: 'stream', label: 'Strumienie' },
-      { tagKey: 'waterway', value: 'drain', label: 'Rowy odwadniające' },
-      { tagKey: 'waterway', value: 'ditch', label: 'Rowy' }
+      { tagKey: 'waterway', value: 'river', label: 'Rivers' },
+      { tagKey: 'waterway', value: 'canal', label: 'Canals' },
+      { tagKey: 'waterway', value: 'stream', label: 'Streams' },
+      { tagKey: 'waterway', value: 'drain', label: 'Drainage ditches' },
+      { tagKey: 'waterway', value: 'ditch', label: 'Ditches' }
     ]
   },
   aerial: {
-    title: 'Koleje linowe',
+    title: 'Aerial lifts',
     options: [
-      { tagKey: 'aerialway', value: 'cable_car', label: 'Koleje linowe kabinowe' },
-      { tagKey: 'aerialway', value: 'gondola', label: 'Gondole' },
-      { tagKey: 'aerialway', value: 'chair_lift', label: 'Wyciągi krzesełkowe' },
-      { tagKey: 'aerialway', value: 'drag_lift', label: 'Wyciągi orczykowe' },
-      { tagKey: 'aerialway', value: 'magic_carpet', label: 'Taśmy narciarskie' }
+      { tagKey: 'aerialway', value: 'cable_car', label: 'Cable cars' },
+      { tagKey: 'aerialway', value: 'gondola', label: 'Gondolas' },
+      { tagKey: 'aerialway', value: 'chair_lift', label: 'Chair lifts' },
+      { tagKey: 'aerialway', value: 'drag_lift', label: 'Drag lifts' },
+      { tagKey: 'aerialway', value: 'magic_carpet', label: 'Magic carpets' }
     ]
   }
 };
 
 var LINE_TYPE_FILTER_SECTIONS = [
-  { title: 'Ruch lokalny', groups: ['bikeped', 'local'], open: true },
-  { title: 'Szynowy i wodny', groups: ['rail', 'ferry'], open: false },
-  { title: 'Główne i szybki ruch', groups: ['main', 'fast'], open: false },
-  { title: 'Pozostałe', groups: ['water', 'aerial'], includeDynamic: true, open: false }
+  { title: 'Local mobility', groups: ['bikeped', 'local'], open: true },
+  { title: 'Rail and water', groups: ['rail', 'ferry'], open: false },
+  { title: 'Main and high-speed', groups: ['main', 'fast'], open: false },
+  { title: 'Other', groups: ['water', 'aerial'], includeDynamic: true, open: false }
 ];
 
 function makeLineTypeKey(tagKey, value) {
@@ -206,7 +206,7 @@ function collectDynamicLineTypeOptions(elements, knownLineTypeKeys) {
 
     if (options.length > 0) {
       dynamicGroups.push({
-        title: DYNAMIC_TAG_GROUP_LABELS[groupKey] || ('Inne: ' + groupKey),
+        title: DYNAMIC_TAG_GROUP_LABELS[groupKey] || ('Other: ' + groupKey),
         options: options
       });
     }
@@ -316,13 +316,14 @@ function styleFor(category) {
   return styles[category] || styles.unknown;
 }
 
-function createLegendControl(onToggleCategory, onToggleExtraFilter, onToggleLineTypeFilterEnabled, onToggleIncludedLineType, categoryState, extraFilterState, lineTypeFilterEnabled, includedLineTypeState) {
+function createLegendControl(onToggleCategory, onToggleExtraFilter, onToggleLineTypeFilterEnabled, onToggleIncludedLineType, categoryState, extraFilterState, lineTypeFilterEnabled, includedLineTypeState, translate) {
   var legend = L.control({ position: 'bottomright' });
   var dynamicOptionsContainer = null;
+  var t = typeof translate === 'function' ? translate : function(key) { return key; };
 
   function renderLineTypeGroup(container, group) {
     var groupTitle = L.DomUtil.create('div', 'surface-highway-group-title', container);
-    groupTitle.textContent = group.title;
+    groupTitle.textContent = t(group.title);
 
     group.options.forEach(function(option) {
       var row = L.DomUtil.create('label', 'surface-legend-item surface-legend-toggle surface-highway-item', container);
@@ -332,7 +333,7 @@ function createLegendControl(onToggleCategory, onToggleExtraFilter, onToggleLine
       checkbox.checked = includedLineTypeState[optionKey] === true;
 
       var text = L.DomUtil.create('span', 'surface-legend-label', row);
-      text.textContent = option.label;
+      text.textContent = t(option.label);
 
       L.DomEvent.on(checkbox, 'change', function() {
         onToggleIncludedLineType(optionKey, checkbox.checked);
@@ -348,7 +349,7 @@ function createLegendControl(onToggleCategory, onToggleExtraFilter, onToggleLine
     container.innerHTML = '';
     if (!groups || groups.length === 0) {
       var empty = L.DomUtil.create('div', 'surface-highway-empty', container);
-      empty.textContent = 'Brak dodatkowych typów linii w bieżącym widoku.';
+      empty.textContent = t('No additional line types in current view.');
       return;
     }
 
@@ -360,7 +361,7 @@ function createLegendControl(onToggleCategory, onToggleExtraFilter, onToggleLine
   legend.onAdd = function() {
     var div = L.DomUtil.create('div', 'surface-legend leaflet-control');
     var title = L.DomUtil.create('div', 'surface-legend-title', div);
-    title.textContent = 'Surface Quality';
+    title.textContent = t('Surface Quality');
 
     LEGEND_ITEMS.forEach(function(item) {
       var row = L.DomUtil.create('label', 'surface-legend-item surface-legend-toggle', div);
@@ -370,7 +371,7 @@ function createLegendControl(onToggleCategory, onToggleExtraFilter, onToggleLine
 
       var line = L.DomUtil.create('span', 'surface-line ' + item.key, row);
       var text = L.DomUtil.create('span', 'surface-legend-label', row);
-      text.textContent = item.label;
+      text.textContent = t(item.label);
 
       L.DomEvent.on(checkbox, 'change', function() {
         onToggleCategory(item.key, checkbox.checked);
@@ -378,7 +379,7 @@ function createLegendControl(onToggleCategory, onToggleExtraFilter, onToggleLine
     });
 
     var divider = L.DomUtil.create('div', 'surface-legend-divider', div);
-    divider.textContent = 'Filtry dodatkowe';
+    divider.textContent = t('Additional filters');
 
     EXTRA_FILTER_ITEMS.forEach(function(item) {
       var row = L.DomUtil.create('label', 'surface-legend-item surface-legend-toggle', div);
@@ -387,7 +388,7 @@ function createLegendControl(onToggleCategory, onToggleExtraFilter, onToggleLine
       checkbox.checked = extraFilterState[item.key] === true;
 
       var text = L.DomUtil.create('span', 'surface-legend-label', row);
-      text.textContent = item.label;
+      text.textContent = t(item.label);
 
       L.DomEvent.on(checkbox, 'change', function() {
         onToggleExtraFilter(item.key, checkbox.checked);
@@ -396,14 +397,14 @@ function createLegendControl(onToggleCategory, onToggleExtraFilter, onToggleLine
 
     var nested = L.DomUtil.create('details', 'surface-legend-nested', div);
     var summary = L.DomUtil.create('summary', 'surface-legend-nested-title', nested);
-    summary.textContent = 'Pozostaw tylko wybrane typy linii';
+    summary.textContent = t('Keep only selected line types');
 
     var filterToggleRow = L.DomUtil.create('label', 'surface-legend-item surface-legend-toggle surface-line-filter-master', nested);
     var filterToggle = L.DomUtil.create('input', 'surface-legend-checkbox', filterToggleRow);
     filterToggle.type = 'checkbox';
     filterToggle.checked = lineTypeFilterEnabled === true;
     var filterToggleText = L.DomUtil.create('span', 'surface-legend-label', filterToggleRow);
-    filterToggleText.textContent = 'Włącz filtr "pozostaw tylko wybrane"';
+    filterToggleText.textContent = t('Enable "keep only selected" filter');
 
     var nestedOptions = L.DomUtil.create('div', 'surface-highway-options', nested);
     if (!filterToggle.checked) {
@@ -427,7 +428,7 @@ function createLegendControl(onToggleCategory, onToggleExtraFilter, onToggleLine
       }
 
       var sectionSummary = L.DomUtil.create('summary', 'surface-legend-subsection-title', sectionDetails);
-      sectionSummary.textContent = section.title;
+      sectionSummary.textContent = t(section.title);
 
       var sectionBody = L.DomUtil.create('div', 'surface-legend-subsection-body', sectionDetails);
 
@@ -440,13 +441,13 @@ function createLegendControl(onToggleCategory, onToggleExtraFilter, onToggleLine
 
       if (section.includeDynamic) {
         var dynamicDivider = L.DomUtil.create('div', 'surface-highway-group-title surface-dynamic-title', sectionBody);
-        dynamicDivider.textContent = 'Wykryte dynamicznie (z aktualnego widoku)';
+        dynamicDivider.textContent = t('Detected dynamically (from current view)');
         dynamicOptionsContainer = L.DomUtil.create('div', 'surface-highway-dynamic', sectionBody);
       }
     });
 
     var note = L.DomUtil.create('div', 'surface-legend-note', div);
-    note.textContent = 'Źródło: tagi OSM surface, tracktype oraz typy linii OSM. Brak zaznaczenia = brak segmentów.';
+    note.textContent = t('Source: OSM surface and tracktype tags plus OSM line types. No selection = no segments.');
 
     L.DomEvent.disableClickPropagation(div);
     L.DomEvent.disableScrollPropagation(div);
@@ -464,6 +465,7 @@ var SurfaceLayer = L.LayerGroup.extend({
   initialize: function(options) {
     options = options || {};
     L.LayerGroup.prototype.initialize.call(this);
+    this.translate = options.translate || function(key) { return key; };
     this.visibleCategories = {
       smooth: true,
       cobbles: true,
@@ -494,7 +496,8 @@ var SurfaceLayer = L.LayerGroup.extend({
       this.visibleCategories,
       this.extraFilters,
       this.lineTypeFilterEnabled,
-      this.includedLineTypes
+      this.includedLineTypes,
+      this.translate
     );
     this.pendingRequest = null;
     this.inFlightRequestKey = null;
@@ -504,6 +507,28 @@ var SurfaceLayer = L.LayerGroup.extend({
     this.warnedMissingApi = false;
     this.maxSegments = 3200;
     this.onMoveEnd = this.onMoveEnd.bind(this);
+  },
+
+  setTranslator: function(translate) {
+    this.translate = translate || function(key) { return key; };
+    var previousLegendControl = this.legendControl;
+    this.legendControl = createLegendControl(
+      this.toggleCategory.bind(this),
+      this.toggleExtraFilter.bind(this),
+      this.toggleLineTypeFilterEnabled.bind(this),
+      this.toggleIncludedLineType.bind(this),
+      this.visibleCategories,
+      this.extraFilters,
+      this.lineTypeFilterEnabled,
+      this.includedLineTypes,
+      this.translate
+    );
+
+    if (this.map && previousLegendControl) {
+      this.map.removeControl(previousLegendControl);
+      this.legendControl.addTo(this.map);
+      this.legendControl.updateDynamicLineTypeOptions(this.dynamicLineTypeGroups);
+    }
   },
 
   onAdd: function(map) {
