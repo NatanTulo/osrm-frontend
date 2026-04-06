@@ -316,7 +316,7 @@ function styleFor(category) {
   return styles[category] || styles.unknown;
 }
 
-function createLegendControl(onToggleCategory, onToggleExtraFilter, onToggleLineTypeFilterEnabled, onToggleIncludedLineType, categoryState, extraFilterState, lineTypeFilterEnabled, includedLineTypeState, translate) {
+function createLegendControl(onToggleCategory, onToggleExtraFilter, onToggleLineTypeFilterEnabled, onToggleIncludedLineType, onGenerateExportCommand, categoryState, extraFilterState, lineTypeFilterEnabled, includedLineTypeState, translate) {
   var legend = L.control({ position: 'bottomright' });
   var dynamicOptionsContainer = null;
   var t = typeof translate === 'function' ? translate : function(key) { return key; };
@@ -449,6 +449,32 @@ function createLegendControl(onToggleCategory, onToggleExtraFilter, onToggleLine
     var note = L.DomUtil.create('div', 'surface-legend-note', div);
     note.textContent = t('Source: OSM surface and tracktype tags plus OSM line types. No selection = no segments.');
 
+    var buildCmdBtn = L.DomUtil.create('button', 'surface-legend-btn', div);
+    buildCmdBtn.textContent = t('Generate Export Command (Widok)');
+    buildCmdBtn.style.marginTop = '10px';
+    buildCmdBtn.style.padding = '5px';
+    buildCmdBtn.style.width = '100%';
+    buildCmdBtn.style.cursor = 'pointer';
+
+    L.DomEvent.on(buildCmdBtn, 'click', function() {
+      if (typeof onGenerateExportCommand === 'function') {
+        onGenerateExportCommand(false);
+      }
+    });
+
+    var buildAllCmdBtn = L.DomUtil.create('button', 'surface-legend-btn', div);
+    buildAllCmdBtn.textContent = t('Generate Export Command (Polska)');
+    buildAllCmdBtn.style.marginTop = '5px';
+    buildAllCmdBtn.style.padding = '5px';
+    buildAllCmdBtn.style.width = '100%';
+    buildAllCmdBtn.style.cursor = 'pointer';
+
+    L.DomEvent.on(buildAllCmdBtn, 'click', function() {
+      if (typeof onGenerateExportCommand === 'function') {
+        onGenerateExportCommand(true);
+      }
+    });
+
     L.DomEvent.disableClickPropagation(div);
     L.DomEvent.disableScrollPropagation(div);
     return div;
@@ -493,6 +519,7 @@ var SurfaceLayer = L.LayerGroup.extend({
       this.toggleExtraFilter.bind(this),
       this.toggleLineTypeFilterEnabled.bind(this),
       this.toggleIncludedLineType.bind(this),
+      this.generateExportCommand.bind(this),
       this.visibleCategories,
       this.extraFilters,
       this.lineTypeFilterEnabled,
@@ -517,6 +544,7 @@ var SurfaceLayer = L.LayerGroup.extend({
       this.toggleExtraFilter.bind(this),
       this.toggleLineTypeFilterEnabled.bind(this),
       this.toggleIncludedLineType.bind(this),
+      this.generateExportCommand.bind(this),
       this.visibleCategories,
       this.extraFilters,
       this.lineTypeFilterEnabled,
@@ -591,6 +619,47 @@ var SurfaceLayer = L.LayerGroup.extend({
       return;
     }
     this.refresh();
+  },
+
+  generateExportCommand: function(wholeMap) {
+    if (!this.map) return;
+    
+    var bbox;
+    if (wholeMap) {
+      bbox = "48.9,13.8,54.9,24.3"; // Poland bounds
+    } else {
+      var bounds = this.map.getBounds();
+      bbox = bounds.getSouthWest().lat.toFixed(3) + ',' + bounds.getSouthWest().lng.toFixed(3) + ',' + bounds.getNorthEast().lat.toFixed(3) + ',' + bounds.getNorthEast().lng.toFixed(3);
+    }
+    
+    var categories = [];
+    var allCategories = Object.keys(this.visibleCategories);
+    for (var i = 0; i < allCategories.length; i++) {
+      var key = allCategories[i];
+      if (this.visibleCategories[key]) categories.push(key);
+    }
+    var catArg = categories.length > 0 ? categories.join(',') : 'none';
+    if (categories.length === allCategories.length) {
+      catArg = 'all';
+    }
+
+    var onlyBikePed = !!this.extraFilters.onlyBikePed;
+
+    var cmd = 'node ./scripts/export_to_gmaps.js --bbox ' + bbox + ' --categories ' + catArg + ' --bikeped ' + onlyBikePed;
+    
+    if (this.lineTypeFilterEnabled) {
+      var activeTypes = [];
+      for (var tk in this.includedLineTypes) {
+        if (this.includedLineTypes[tk]) activeTypes.push(tk);
+      }
+      if (activeTypes.length > 0) {
+        cmd += ' --linetypes ' + activeTypes.join(',');
+      } else {
+        cmd += ' --linetypes none';
+      }
+    }
+    
+    window.prompt(this.translate('Copy this command to your terminal to export data for current view with these filters:'), cmd);
   },
 
   onMoveEnd: function() {
