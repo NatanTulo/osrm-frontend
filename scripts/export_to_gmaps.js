@@ -16,7 +16,6 @@ try {
 // 1. Configuration & Constants
 // -----------------------------------------------------
 const OVERPASS_URL = 'http://127.0.0.1:12345/api/interpreter';
-const MAX_ROWS_PER_CSV = 2000; // Keep safely below 2000 for Google My Maps
 
 // Test bounded box (e.g. Gdansk/Sobieszewo area from your screenshots)
 const TEST_BBOX = "54.218,18.824,54.341,19.066";
@@ -114,42 +113,10 @@ const polishHighway = {
   primary: 'Droga główna'
 };
 
-const polishSurface = {
-  asphalt: 'Asfalt',
-  paved: 'Utwardzona',
-  concrete: 'Beton',
-  paving_stones: 'Kostka brukowa / Bauma',
-  compacted: 'Ubista / żwirowa',
-  fine_gravel: 'Drobny szuter',
-  gravel: 'Szuter / żwir',
-  ground: 'Ziemia',
-  dirt: 'Ziemia',
-  earth: 'Ubita ziemia',
-  sand: 'Piach',
-  grass: 'Trawa',
-  wood: 'Drewno',
-  cobblestone: 'Kocie łby',
-  sett: 'Ciosany kamień (sett)'
-};
 
 // -----------------------------------------------------
 // 3. Helper Functions
 // -----------------------------------------------------
-function drawProgressBar(current, total, prefix = "Progress:") {
-  const barLength = 40;
-  let percent = 0;
-  let chars = 0;
-  if(total > 0) {
-      percent = Math.floor((current / total) * 100);
-      chars = Math.floor((current / total) * barLength);
-  } else {
-      percent = 100;
-      chars = barLength;
-  }
-  const emptyChars = barLength - chars;
-  const bar = '█'.repeat(chars) + '-'.repeat(emptyChars);
-  process.stdout.write(`\r${prefix} [${bar}] ${percent}% (${Math.floor(current/1024/1024)}mb / ${Math.floor(total/1024/1024)}mb)`);
-}
 
 function escapeCsv(text) {
   if (!text) return '';
@@ -158,6 +125,17 @@ function escapeCsv(text) {
     return `"${stringified.replace(/"/g, '""')}"`;
   }
   return stringified;
+}
+
+function haversineDistance(lon1, lat1, lon2, lat2) {
+  const R = 6371e3; // Promień Ziemi w metrach
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLon/2) * Math.sin(dLon/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R * c;
 }
 
 function fetchAndStreamOverpassData(bbox, onlyBikePed, lineTypeFilterEnabled, includedLineTypes, onElement, onDone, onError) {
@@ -306,8 +284,21 @@ async function run() {
   try {
       let matchedCount = 0;
       
-      // Structure: groups[FileGroup][MetadataCombination] = [ "(lon lat, lon lat)", ... ]
-      const groups = {};
+      const allWays = [];
+      const coordToWayIds = new Map();
+      
+      const ufParent = [];
+      const find = (i) => {
+          if (ufParent[i] === i) return i;
+          return ufParent[i] = find(ufParent[i]);
+      };
+      const union = (i, j) => {
+          const rootI = find(i);
+          const rootJ = find(j);
+          if (rootI !== rootJ) {
+              ufParent[rootI] = rootJ;
+          }
+      };
 
       fetchAndStreamOverpassData(bbox, onlyBikePed, lineTypeFilterEnabled, includedLineTypes, 
           // onElement
@@ -324,88 +315,132 @@ async function run() {
               matchedCount++;
               
               if (matchedCount % 5000 === 0) {
-                  process.stdout.write(`\rAnalizowanie ścieżek przez strumień i kompresowanie w MULTILINESTRING: ${matchedCount}...`);
+                  process.stdout.write(`\rOdbieranie ścieżek przez strumień i analiza... ${matchedCount}`);
               }
 
+              let wayLength = 0;
               let coords = [];
               for (let g = 0; g < el.geometry.length; g++) {
                   coords.push(`${el.geometry[g].lon} ${el.geometry[g].lat}`);
+                  if (g > 0) {
+                      wayLength += haversineDistance(
+                          el.geometry[g-1].lon, el.geometry[g-1].lat,
+                          el.geometry[g].lon, el.geometry[g].lat
+                      );
+                  }
               }
               const geomStr = `(${coords.join(', ')})`;
               
-              // Extract metadata, normalizing identical names to group perfectly
-              const rawName = tags.name || tags.ref;
-              const name = rawName ? rawName : 'Brak nazwy';
-              
               let plCategory = polishFileCategory[category] || category;
               let plHighway = polishHighway[tags.highway] || tags.highway || '';
-              let plSurface = polishSurface[tags.surface] || tags.surface || '';
-
               let routeGroup = (tags.highway === 'cycleway' || tags.highway === 'path') ? 'Sciezki_Rowerowe' : 'Inne_Drogi';
               let fileGroupKey = `${plCategory}_${routeGroup}`;
-              
-              // Metadata key used for perfect combination merging
-              let subKey = `${name}|${plCategory}|${plHighway}|${plSurface}`;
+              let subKey = plHighway;
 
-              if (!groups[fileGroupKey]) groups[fileGroupKey] = {};
-              if (!groups[fileGroupKey][subKey]) groups[fileGroupKey][subKey] = [];
-              
-              groups[fileGroupKey][subKey].push(geomStr);
+              const index = allWays.length;
+              allWays.push({ geomStr, length: wayLength, subKey, fileGroupKey });
+              ufParent.push(index);
+
+              for (let c = 0; c < coords.length; c++) {
+                  const ptWithGroup = coords[c] + "|" + routeGroup;
+                  const existing = coordToWayIds.get(ptWithGroup);
+                  if (existing !== undefined) {
+                      if (typeof existing === 'number') {
+                          coordToWayIds.set(ptWithGroup, [existing, index]);
+                          union(existing, index);
+                      } else {
+                          existing.push(index);
+                          union(existing[0], index);
+                      }
+                  } else {
+                      coordToWayIds.set(ptWithGroup, index);
+                  }
+              }
           },
           // onDone
           () => {
-              console.log(`\nZakończono pobieranie pamięci. Pasujących odcinków: ${matchedCount}. Scalanie do plików...`);
+              console.log(`\nZakończono pobieranie pamięci. Pasujących odcinków: ${matchedCount}. Analizowanie topologii sieci (Union-Find)...`);
               
-              const MAX_LINES_PER_CSV = 1900;
-              const MAX_GEOMS_PER_ROW = 800; // Limits cell sizes to avoid crashing browsers
+              const componentLength = new Float64Array(allWays.length);
+              for (let i = 0; i < allWays.length; i++) {
+                  const root = find(i);
+                  componentLength[root] += allWays[i].length;
+              }
+
+              const groups = {};
+
+              let rejectedCount = 0;
+              let keptCount = 0;
+
+              for (let i = 0; i < allWays.length; i++) {
+                  const way = allWays[i];
+                  const root = find(i);
+                  const isAccepted = componentLength[root] >= 75.0;
+
+                  if (!isAccepted) {
+                      rejectedCount++;
+                      continue; // po prostu pomijamy śmieci, nie zapisujemy
+                  }
+                  keptCount++;
+
+                  if (!groups[way.fileGroupKey]) groups[way.fileGroupKey] = {};
+                  if (!groups[way.fileGroupKey][way.subKey]) groups[way.fileGroupKey][way.subKey] = [];
+                  groups[way.fileGroupKey][way.subKey].push(way.geomStr);
+              }
+
+              console.log(`Odrzucono ${rejectedCount} mikroskopijnych odłamków (<75m). Scalanie ${keptCount} odcinków do plików CSV...`);
+              
+              const MAX_FILE_BYTES = 19 * 1024 * 1024; // 19 MB
+              const MAX_GEOMS_PER_ROW = 800;
               let totalGeneratedFiles = 0;
               
+              const sciezkiDir = path.join(exportDir, "Sciezki_Rowerowe");
+              const inneDir = path.join(exportDir, "Inne_Drogi");
+              
+              if (!fs.existsSync(sciezkiDir)) fs.mkdirSync(sciezkiDir);
+              if (!fs.existsSync(inneDir)) fs.mkdirSync(inneDir);
+
+              const CSV_HEADER = "WKT,Typ ścieżki\n";
+
               Object.keys(groups).forEach(fileGroupKey => {
                   const metadataGroups = groups[fileGroupKey];
-                  
                   let currentFileIndex = 1;
-                  let currentRowCount = 0;
-                  
-                  let filePath = path.join(exportDir, `${fileGroupKey}_${currentFileIndex}.csv`);
-                  fs.writeFileSync(filePath, "WKT,Nazwa,Grupa jakościowa,Typ ścieżki,Tag nawierzchni OSM\n", 'utf8');
+                  let currentFileBytes = 0;
+
+                  let targetSubDir = fileGroupKey.includes('Sciezki_Rowerowe') ? sciezkiDir : inneDir;
+
+                  let filePath = path.join(targetSubDir, `${fileGroupKey}_${currentFileIndex}.csv`);
+                  fs.writeFileSync(filePath, CSV_HEADER, 'utf8');
+                  currentFileBytes = Buffer.byteLength(CSV_HEADER, 'utf8');
                   totalGeneratedFiles++;
-                  
-                  Object.keys(metadataGroups).forEach(subKey => {
-                      const [name, category, highway, surface] = subKey.split('|');
-                      const geomCollection = metadataGroups[subKey];
-                      
-                      // Chunk huge networks of exactly same metadata to avoid Google Maps cell text length explosions
+
+                  Object.keys(metadataGroups).forEach(highway => {
+                      const geomCollection = metadataGroups[highway];
+
                       for (let i = 0; i < geomCollection.length; i += MAX_GEOMS_PER_ROW) {
                           const chunkGeoms = geomCollection.slice(i, i + MAX_GEOMS_PER_ROW);
                           const wkt = `MULTILINESTRING(${chunkGeoms.join(', ')})`;
-                          
-                          const row = [
-                              escapeCsv(wkt),
-                              escapeCsv(name),
-                              escapeCsv(category),
-                              escapeCsv(highway),
-                              escapeCsv(surface)
-                          ].join(',');
-                          
-                          fs.appendFileSync(filePath, row + "\n", 'utf8');
-                          currentRowCount++;
-                          
-                          // Roll file over if limits reached
-                          if (currentRowCount >= MAX_LINES_PER_CSV) {
+
+                          const row = escapeCsv(wkt) + ',' + escapeCsv(highway) + "\n";
+
+                          const rowBytes = Buffer.byteLength(row, 'utf8');
+
+                          if (currentFileBytes + rowBytes > MAX_FILE_BYTES) {
                               currentFileIndex++;
-                              currentRowCount = 0;
-                              filePath = path.join(exportDir, `${fileGroupKey}_${currentFileIndex}.csv`);
-                              fs.writeFileSync(filePath, "WKT,Nazwa,Grupa jakościowa,Typ ścieżki,Tag nawierzchni OSM\n", 'utf8');
+                              currentFileBytes = Buffer.byteLength(CSV_HEADER, 'utf8');
+                              filePath = path.join(targetSubDir, `${fileGroupKey}_${currentFileIndex}.csv`);
+                              fs.writeFileSync(filePath, CSV_HEADER, 'utf8');
                               totalGeneratedFiles++;
                           }
+
+                          fs.appendFileSync(filePath, row, 'utf8');
+                          currentFileBytes += rowBytes;
                       }
                   });
               });
 
-              console.log(`\nWyeksportowano poprawnie łącznie ${matchedCount} pojedynczych odcinków tras! 🎉`);
-              console.log(`Ogromne zbiory zostały skompresowane poprzez MULTILINESTRING i zmieszczone w zaledwie ${totalGeneratedFiles} pliku/ach!`);
-              console.log(`Bez problemu przyjmie je teraz Google My Maps bez błędów o limitach 2000 wierszy.`);
-              console.log(`Otwórz folder: ${exportDir} i wgraj pliki na nowo.`);
+              console.log(`\nWyeksportowano poprawnie do ${totalGeneratedFiles} pliku/ach! 🎉`);
+              console.log(`Pliki zostały umieszczone w podfolderach wewnątrz: ${exportDir}`);
               rl.close();
               process.exit(0);
           },
