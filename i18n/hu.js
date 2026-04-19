@@ -85,5 +85,5 @@ module.exports = {
   'Source: OSM surface and tracktype tags plus OSM line types. No selection = no segments.': 'Forrás: OSM surface és tracktype címkék, valamint OSM vonaltípusok. Nincs kijelölés = nincs szakasz.',
   'Bike': 'Kerékpár',
   'Car': 'Autó',
-  'Foot': 'Gyalog',
+  'Foot': 'Gyalog'
 };

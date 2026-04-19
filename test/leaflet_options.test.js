@@ -1,10 +1,31 @@
 'use strict';
 
 // Mock leaflet so this test runs in the node environment without a DOM
-jest.mock('leaflet', () => ({
-  tileLayer: (url, options) => ({ _url: url, _options: options }),
-  latLng: (lat, lng) => ({ lat, lng })
-}));
+jest.mock('leaflet', () => {
+  function LayerGroup() {}
+  LayerGroup.prototype.initialize = function() {};
+  LayerGroup.extend = function(definition) {
+    function ExtendedLayerGroup(options) {
+      if (typeof definition.initialize === 'function') {
+        definition.initialize.call(this, options);
+      }
+    }
+
+    ExtendedLayerGroup.prototype = Object.create(LayerGroup.prototype);
+    Object.keys(definition).forEach(function(key) {
+      ExtendedLayerGroup.prototype[key] = definition[key];
+    });
+
+    return ExtendedLayerGroup;
+  };
+
+  return {
+    tileLayer: (url, options) => ({ _url: url, _options: options }),
+    latLng: (lat, lng) => ({ lat, lng }),
+    control: () => ({}),
+    LayerGroup: LayerGroup
+  };
+});
 
 const leafletOptions = require('../src/leaflet_options');
 
@@ -85,17 +106,17 @@ describe('leaflet_options — tileset migration', () => {
       expect(leafletOptions.defaultState.layer._url).toContain('cartocdn.com');
     });
 
-    test('default zoom is 13', () => {
-      expect(leafletOptions.defaultState.zoom).toBe(13);
+    test('default zoom is 9', () => {
+      expect(leafletOptions.defaultState.zoom).toBe(9);
     });
 
     test('default language is en', () => {
       expect(leafletOptions.defaultState.language).toBe('en');
     });
 
-    test('default center is Washington DC', () => {
-      expect(leafletOptions.defaultState.center.lat).toBeCloseTo(38.8995);
-      expect(leafletOptions.defaultState.center.lng).toBeCloseTo(-77.0269);
+    test('default center is Gdansk', () => {
+      expect(leafletOptions.defaultState.center.lat).toBeCloseTo(54.3520);
+      expect(leafletOptions.defaultState.center.lng).toBeCloseTo(18.6466);
     });
   });
 

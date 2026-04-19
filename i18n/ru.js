@@ -85,5 +85,5 @@ module.exports = {
   'Source: OSM surface and tracktype tags plus OSM line types. No selection = no segments.': 'Источник: теги OSM surface и tracktype, а также типы линий OSM. Нет выбора = нет сегментов.',
   'Bike': 'Велосипед',
   'Car': 'Авто',
-  'Foot': 'Пешком',
+  'Foot': 'Пешком'
 };

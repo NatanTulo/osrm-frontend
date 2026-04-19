@@ -85,5 +85,5 @@ module.exports = {
   'Source: OSM surface and tracktype tags plus OSM line types. No selection = no segments.': 'Fonte: tags OSM de surface e tracktype mais tipos de linha OSM. Sem seleção = sem segmentos.',
   'Bike': 'Bicicleta',
   'Car': 'Carro',
-  'Foot': 'A pé',
+  'Foot': 'A pé'
 };

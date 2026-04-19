@@ -85,5 +85,5 @@ module.exports = {
   'Source: OSM surface and tracktype tags plus OSM line types. No selection = no segments.': 'Källa: OSM-taggar för surface och tracktype samt OSM-linjetyper. Inget val = inga segment.',
   'Bike': 'Cykel',
   'Car': 'Bil',
-  'Foot': 'Till fots',
+  'Foot': 'Till fots'
 };

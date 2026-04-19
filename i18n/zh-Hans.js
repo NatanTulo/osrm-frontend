@@ -84,7 +84,6 @@ module.exports = {
   'Land use': '土地利用',
   'Source: OSM surface and tracktype tags plus OSM line types. No selection = no segments.': '来源：OSM 的 surface 与 tracktype 标签以及 OSM 线类型。未选择 = 无线段。',
   'Bike': '自行车',
-  'Car': '汽车',
   'Foot': '步行',
   'Build': '构建: '
 };

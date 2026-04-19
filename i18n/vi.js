@@ -85,5 +85,5 @@ module.exports = {
   'Source: OSM surface and tracktype tags plus OSM line types. No selection = no segments.': 'Nguồn: thẻ OSM surface và tracktype cùng các loại đường OSM. Không chọn = không có đoạn.',
   'Bike': 'Xe đạp',
   'Car': 'Ô tô',
-  'Foot': 'Đi bộ',
+  'Foot': 'Đi bộ'
 };

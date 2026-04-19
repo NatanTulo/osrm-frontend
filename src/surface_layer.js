@@ -12,7 +12,8 @@ var LEGEND_ITEMS = [
 ];
 
 var EXTRA_FILTER_ITEMS = [
-  { key: 'onlyBikePed', label: 'Only sidewalks / bicycle roads and paths' }
+  { key: 'onlyBikePed', label: 'Only sidewalks / bicycle roads and paths' },
+  { key: 'splitByVoivodeship', label: 'Split export into voivodeship folders' }
 ];
 
 var DYNAMIC_LINE_TAG_KEYS = [
@@ -246,34 +247,9 @@ function matchesSelectedLineType(tags, includedLineTypes) {
   return false;
 }
 
-function isTruthyTag(value) {
-  return /^(yes|designated|official|permissive|destination|use_sidepath)$/.test((value || '').toLowerCase());
-}
-
 function isBikePedWay(tags) {
   var highway = (tags.highway || '').toLowerCase();
-  var cycleway = (tags.cycleway || '').toLowerCase();
-  var cyclewayBoth = (tags['cycleway:both'] || '').toLowerCase();
-  var bicycle = (tags.bicycle || '').toLowerCase();
-  var foot = (tags.foot || '').toLowerCase();
-
-  if (/^(cycleway|path|footway|pedestrian|living_street|track)$/.test(highway)) {
-    return true;
-  }
-
-  if (cycleway && cycleway !== 'no') {
-    return true;
-  }
-
-  if (cyclewayBoth && cyclewayBoth !== 'no') {
-    return true;
-  }
-
-  if (isTruthyTag(bicycle) || isTruthyTag(foot)) {
-    return true;
-  }
-
-  return false;
+  return /^(cycleway|track|path|service)$/.test(highway);
 }
 
 function classifySurface(tags) {
@@ -319,7 +295,9 @@ function styleFor(category) {
 function createLegendControl(onToggleCategory, onToggleExtraFilter, onToggleLineTypeFilterEnabled, onToggleIncludedLineType, onGenerateExportCommand, categoryState, extraFilterState, lineTypeFilterEnabled, includedLineTypeState, translate) {
   var legend = L.control({ position: 'bottomright' });
   var dynamicOptionsContainer = null;
-  var t = typeof translate === 'function' ? translate : function(key) { return key; };
+  var t = typeof translate === 'function' ? translate : function(key) {
+    return key;
+  };
 
   function renderLineTypeGroup(container, group) {
     var groupTitle = L.DomUtil.create('div', 'surface-highway-group-title', container);
@@ -491,7 +469,9 @@ var SurfaceLayer = L.LayerGroup.extend({
   initialize: function(options) {
     options = options || {};
     L.LayerGroup.prototype.initialize.call(this);
-    this.translate = options.translate || function(key) { return key; };
+    this.translate = options.translate || function(key) {
+      return key;
+    };
     this.visibleCategories = {
       smooth: true,
       cobbles: true,
@@ -501,7 +481,8 @@ var SurfaceLayer = L.LayerGroup.extend({
       unknown: true
     };
     this.extraFilters = {
-      onlyBikePed: false
+      onlyBikePed: false,
+      splitByVoivodeship: false
     };
     this.lineTypeFilterEnabled = false;
     this.includedLineTypes = {};
@@ -537,7 +518,9 @@ var SurfaceLayer = L.LayerGroup.extend({
   },
 
   setTranslator: function(translate) {
-    this.translate = translate || function(key) { return key; };
+    this.translate = translate || function(key) {
+      return key;
+    };
     var previousLegendControl = this.legendControl;
     this.legendControl = createLegendControl(
       this.toggleCategory.bind(this),
@@ -645,7 +628,9 @@ var SurfaceLayer = L.LayerGroup.extend({
 
     var onlyBikePed = !!this.extraFilters.onlyBikePed;
 
-    var cmd = 'node ./scripts/export_to_gmaps.js --bbox ' + bbox + ' --categories ' + catArg + ' --bikeped ' + onlyBikePed;
+    var splitByVoivodeship = !!this.extraFilters.splitByVoivodeship;
+
+    var cmd = 'node ./scripts/export_to_gmaps.js --bbox ' + bbox + ' --categories ' + catArg + ' --bikeped ' + onlyBikePed + ' --split-voivodeships ' + splitByVoivodeship;
     
     if (this.lineTypeFilterEnabled) {
       var activeTypes = [];

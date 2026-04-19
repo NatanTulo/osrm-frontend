@@ -21,7 +21,7 @@ module.exports = {
   'Ground / sand / mud': 'Grunt / piach / błoto',
   'No data': 'Brak danych',
   'Additional filters': 'Filtry dodatkowe',
-  'Only sidewalks / bicycle roads and paths': 'Tylko chodniki / drogi i ścieżki rowerowe',
+  'Only sidewalks / bicycle roads and paths': 'Tylko: Drogi rowerowe, Drogi gruntowe i techniczne, Ścieżki, Dojazdy i serwisowe',
   'Keep only selected line types': 'Pozostaw tylko wybrane typy linii',
   'Enable "keep only selected" filter': 'Włącz filtr "pozostaw tylko wybrane"',
   'Local mobility': 'Ruch lokalny',
@@ -85,5 +85,5 @@ module.exports = {
   'Source: OSM surface and tracktype tags plus OSM line types. No selection = no segments.': 'Źródło: tagi OSM surface, tracktype oraz typy linii OSM. Brak zaznaczenia = brak segmentów.',
   'Bike': 'Rower',
   'Car': 'Samochód',
-  'Foot': 'Pieszo',
+  'Foot': 'Pieszo'
 };

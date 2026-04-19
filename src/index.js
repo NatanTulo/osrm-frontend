@@ -174,7 +174,9 @@ if (ls.get('getOverlay') && overlay['Surface Quality'] && Array.isArray(layers) 
 var bikeOverlayAutoActivated = _initResult.bikeOverlayAutoActivated;
 
 var surfaceQualityKey = 'Surface Quality';
-var localize = function(key) { return localization.t(language, key); };
+var localize = function(key) {
+  return localization.t(language, key);
+};
 if (overlay[surfaceQualityKey] && typeof overlay[surfaceQualityKey].setTranslator === 'function') {
   overlay[surfaceQualityKey].setTranslator(localize);
 }
