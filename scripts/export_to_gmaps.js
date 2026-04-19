@@ -372,10 +372,17 @@ async function run() {
               let rejectedCount = 0;
               let keptCount = 0;
 
+              const MIN_LENGTH_BY_GROUP = {
+                  'Sciezki_Rowerowe': 75.0,
+                  'Inne_Drogi': 400.0,
+              };
+
               for (let i = 0; i < allWays.length; i++) {
                   const way = allWays[i];
                   const root = find(i);
-                  const isAccepted = componentLength[root] >= 75.0;
+                  const routeGroup = way.fileGroupKey.includes('Sciezki_Rowerowe') ? 'Sciezki_Rowerowe' : 'Inne_Drogi';
+                  const minLength = MIN_LENGTH_BY_GROUP[routeGroup] ?? 75.0;
+                  const isAccepted = componentLength[root] >= minLength;
 
                   if (!isAccepted) {
                       rejectedCount++;
@@ -390,7 +397,7 @@ async function run() {
 
               console.log(`Odrzucono ${rejectedCount} mikroskopijnych odłamków (<75m). Scalanie ${keptCount} odcinków do plików CSV...`);
               
-              const MAX_FILE_BYTES = 19 * 1024 * 1024; // 19 MB
+              const MAX_FILE_BYTES = 20 * 1024 * 1024; // 20 MB
               const MAX_GEOMS_PER_ROW = 800;
               let totalGeneratedFiles = 0;
               
