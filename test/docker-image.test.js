@@ -24,16 +24,19 @@ test('docker image serves a page (index.html)', async () => {
   // Build the image (allow larger stdout buffer)
   await exec(`docker build -f docker/Dockerfile -t ${IMAGE_TAG} .`, { timeout: 3 * 60 * 1000, maxBuffer: 10 * 1024 * 1024 });
 
-  // Run detached with random host port published for exposed ports
-  const { stdout: runOut } = await exec(`docker run -d -P --name ${CONTAINER_NAME} ${IMAGE_TAG}`);
+  // Run detached with published host port 9966
+  const { stdout: runOut } = await exec(`docker run -d -p 9966:9966 --name ${CONTAINER_NAME} ${IMAGE_TAG}`);
   const containerId = runOut.trim();
 
   try {
-    // Determine the mapped host port for container port 9966
-    const { stdout: portOut } = await exec(`docker port ${containerId} 9966/tcp`);
-    const m = portOut.trim().match(/:(\d+)$/);
-    if (!m) throw new Error('Failed to determine mapped port from: ' + portOut);
-    const port = m[1];
+    let port = '9966';
+    try {
+      const { stdout: portOut } = await exec(`docker port ${containerId} 9966/tcp`);
+      const m = portOut.trim().match(/:(\d+)$/);
+      if (m) port = m[1];
+    } catch (e) {
+      // Fallback to default mapped port 9966
+    }
 
     // Poll the container until it serves HTTP 200 or timeout
     let ok = false;

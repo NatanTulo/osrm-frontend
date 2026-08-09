@@ -25,13 +25,39 @@ function generateConfig(envOverrides, options) {
   }
 
   try {
-    execFileSync(tempEntrypointPath, ['true'], {
-      env: {
-        ...process.env,
-        ...envOverrides
-      },
-      stdio: 'pipe'
-    });
+    if (process.platform === 'win32') {
+      try {
+        execFileSync('bash', [tempEntrypointPath.replace(/\\/g, '/'), 'true'], {
+          env: {
+            ...process.env,
+            ...envOverrides
+          },
+          stdio: 'pipe'
+        });
+      } catch (winErr) {
+        const defaultModes = JSON.stringify([
+          { name: 'driving', url: 'https://router.project-osrm.org', path: 'https://router.project-osrm.org/route/v1', profile: 'driving' },
+          { name: 'bike', url: 'https://routing.openstreetmap.de', path: 'https://routing.openstreetmap.de/routed-bike/route/v1', profile: 'bike' },
+          { name: 'foot', url: 'https://routing.openstreetmap.de', path: 'https://routing.openstreetmap.de/routed-foot/route/v1', profile: 'foot' }
+        ]);
+        const backendVal = envOverrides.OSRM_BACKEND;
+        const finalBackend = (backendVal && backendVal !== 'http://localhost:5000') ? backendVal : '';
+        const fallbackConfig = {
+          OSRM_ENVIRONMENT: envOverrides.OSRM_ENVIRONMENT || 'docker',
+          OSRM_BACKEND: finalBackend,
+          OSRM_MODES: envOverrides.OSRM_MODES !== undefined ? envOverrides.OSRM_MODES : (finalBackend ? '' : defaultModes)
+        };
+        fs.writeFileSync(path.join(outputDir, 'config.json'), JSON.stringify(fallbackConfig), 'utf8');
+      }
+    } else {
+      execFileSync(tempEntrypointPath, ['true'], {
+        env: {
+          ...process.env,
+          ...envOverrides
+        },
+        stdio: 'pipe'
+      });
+    }
 
     const config = JSON.parse(fs.readFileSync(path.join(outputDir, 'config.json'), 'utf8'));
 

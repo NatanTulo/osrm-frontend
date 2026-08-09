@@ -293,7 +293,7 @@ function styleFor(category) {
 }
 
 function createLegendControl(onToggleCategory, onToggleExtraFilter, onToggleLineTypeFilterEnabled, onToggleIncludedLineType, onGenerateExportCommand, categoryState, extraFilterState, lineTypeFilterEnabled, includedLineTypeState, translate) {
-  var legend = L.control({ position: 'bottomright' });
+  var legend = (L && typeof L.control === 'function') ? L.control({ position: 'bottomright' }) : { onAdd: function() {}, addTo: function() {}, remove: function() {} };
   var dynamicOptionsContainer = null;
   var t = typeof translate === 'function' ? translate : function(key) {
     return key;
@@ -466,7 +466,18 @@ function createLegendControl(onToggleCategory, onToggleExtraFilter, onToggleLine
 }
 
 var BaseLayerGroup = (L && L.LayerGroup) ? L.LayerGroup : function() {};
-var SurfaceLayer = BaseLayerGroup.extend ? BaseLayerGroup.extend({
+if (!BaseLayerGroup.extend) {
+  BaseLayerGroup.extend = function(props) {
+    function LayerSubclass(options) {
+      if (props && typeof props.initialize === 'function') {
+        props.initialize.call(this, options);
+      }
+    }
+    LayerSubclass.prototype = Object.create(props || {});
+    return LayerSubclass;
+  };
+}
+var SurfaceLayer = BaseLayerGroup.extend({
   initialize: function(options) {
     options = options || {};
     if (BaseLayerGroup.prototype && BaseLayerGroup.prototype.initialize) {
