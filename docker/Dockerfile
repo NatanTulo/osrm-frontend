@@ -18,7 +18,7 @@ ENV OSRM_BACKEND=$OSRM_BACKEND \
 
 WORKDIR /app
 COPY package*.json ./
-RUN npm ci
+RUN npm ci || npm install
 COPY . .
 # replace.js reads the ENV vars above and patches src/leaflet_options.js before Vite runs
 RUN npm run build
