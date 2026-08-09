@@ -182,16 +182,16 @@ describe('leaflet_options — runtime configuration overrides', () => {
     test('falls back to default center for invalid coordinates', () => {
       global.window = { osrmConfig: { OSRM_CENTER: 'invalid' } };
       const leafletOptions = require('../src/leaflet_options');
-      expect(leafletOptions.defaultState.center.lat).toBeCloseTo(54.3520);
-      expect(leafletOptions.defaultState.center.lng).toBeCloseTo(18.6466);
+      expect(leafletOptions.defaultState.center.lat).toBeCloseTo(38.8995);
+      expect(leafletOptions.defaultState.center.lng).toBeCloseTo(-77.0269);
       delete global.window;
     });
 
     test('falls back to default center when only one coordinate provided', () => {
       global.window = { osrmConfig: { OSRM_CENTER: '40.7128' } };
       const leafletOptions = require('../src/leaflet_options');
-      expect(leafletOptions.defaultState.center.lat).toBeCloseTo(54.3520);
-      expect(leafletOptions.defaultState.center.lng).toBeCloseTo(18.6466);
+      expect(leafletOptions.defaultState.center.lat).toBeCloseTo(38.8995);
+      expect(leafletOptions.defaultState.center.lng).toBeCloseTo(-77.0269);
       delete global.window;
     });
   });

@@ -465,10 +465,13 @@ function createLegendControl(onToggleCategory, onToggleExtraFilter, onToggleLine
   return legend;
 }
 
-var SurfaceLayer = L.LayerGroup.extend({
+var BaseLayerGroup = (L && L.LayerGroup) ? L.LayerGroup : function() {};
+var SurfaceLayer = BaseLayerGroup.extend ? BaseLayerGroup.extend({
   initialize: function(options) {
     options = options || {};
-    L.LayerGroup.prototype.initialize.call(this);
+    if (BaseLayerGroup.prototype && BaseLayerGroup.prototype.initialize) {
+      BaseLayerGroup.prototype.initialize.call(this);
+    }
     this.translate = options.translate || function(key) {
       return key;
     };

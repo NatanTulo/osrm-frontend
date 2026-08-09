@@ -52,7 +52,7 @@ var streets = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager
  * @returns {L.LatLng} The parsed or fallback center coordinate.
  */
 function parseCenter() {
-  var defaultCenterStr = '54.3520,18.6466';
+  var defaultCenterStr = '38.8995,-77.0269';
   var centerStr = config.OSRM_CENTER || defaultCenterStr;
   var parts = centerStr.split(/[, ]+/);
   var lat;
