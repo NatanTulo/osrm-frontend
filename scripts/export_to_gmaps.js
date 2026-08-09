@@ -16,29 +16,31 @@ try {
 // 1. Configuration & Constants
 // -----------------------------------------------------
 const OVERPASS_URL = 'http://127.0.0.1:12345/api/interpreter';
+const OVERPASS_REQUEST_TIMEOUT_MS = 12 * 60 * 1000;
+const OVERPASS_MAX_RETRIES = 4;
 
 // Test bounded box (e.g. Gdansk/Sobieszewo area from your screenshots)
 const TEST_BBOX = "54.218,18.824,54.341,19.066";
 // Approximate bounding box for Poland
 const POLAND_BBOX = "48.9,13.8,54.9,24.3"; 
 
-const VOIVODESHIP_BBOXES = [
-    { folder: 'Dolnoslaskie', bbox: [50.0, 14.9, 51.8, 17.9] },
-    { folder: 'Kujawsko_Pomorskie', bbox: [52.2, 17.3, 53.8, 19.9] },
-    { folder: 'Lubelskie', bbox: [50.2, 22.0, 51.8, 24.3] },
-    { folder: 'Lubuskie', bbox: [51.3, 14.1, 53.2, 16.6] },
-    { folder: 'Lodzkie', bbox: [50.9, 18.0, 52.4, 20.4] },
-    { folder: 'Malopolskie', bbox: [49.1, 19.0, 50.6, 21.6] },
-    { folder: 'Mazowieckie', bbox: [51.0, 19.1, 53.6, 22.9] },
-    { folder: 'Opolskie', bbox: [50.0, 17.1, 51.2, 18.7] },
-    { folder: 'Podkarpackie', bbox: [49.0, 21.0, 50.9, 23.9] },
-    { folder: 'Podlaskie', bbox: [52.2, 22.3, 54.4, 24.3] },
-    { folder: 'Pomorskie', bbox: [53.4, 16.6, 55.0, 19.9] },
-    { folder: 'Slaskie', bbox: [49.3, 18.3, 50.9, 19.9] },
-    { folder: 'Swietokrzyskie', bbox: [50.3, 19.7, 51.4, 21.9] },
-    { folder: 'Warminsko_Mazurskie', bbox: [53.2, 19.2, 54.6, 23.0] },
-    { folder: 'Wielkopolskie', bbox: [51.2, 15.7, 53.9, 18.7] },
-    { folder: 'Zachodniopomorskie', bbox: [52.6, 14.1, 54.7, 17.3] }
+const VOIVODESHIPS = [
+    { iso: 'PL-02', folder: 'Dolnoslaskie', label: 'Dolnoslaskie' },
+    { iso: 'PL-04', folder: 'Kujawsko_Pomorskie', label: 'Kujawsko-Pomorskie' },
+    { iso: 'PL-06', folder: 'Lubelskie', label: 'Lubelskie' },
+    { iso: 'PL-08', folder: 'Lubuskie', label: 'Lubuskie' },
+    { iso: 'PL-10', folder: 'Lodzkie', label: 'Lodzkie' },
+    { iso: 'PL-12', folder: 'Malopolskie', label: 'Malopolskie' },
+    { iso: 'PL-14', folder: 'Mazowieckie', label: 'Mazowieckie' },
+    { iso: 'PL-16', folder: 'Opolskie', label: 'Opolskie' },
+    { iso: 'PL-18', folder: 'Podkarpackie', label: 'Podkarpackie' },
+    { iso: 'PL-20', folder: 'Podlaskie', label: 'Podlaskie' },
+    { iso: 'PL-22', folder: 'Pomorskie', label: 'Pomorskie' },
+    { iso: 'PL-24', folder: 'Slaskie', label: 'Slaskie' },
+    { iso: 'PL-26', folder: 'Swietokrzyskie', label: 'Swietokrzyskie' },
+    { iso: 'PL-28', folder: 'Warminsko_Mazurskie', label: 'Warminsko-Mazurskie' },
+    { iso: 'PL-30', folder: 'Wielkopolskie', label: 'Wielkopolskie' },
+    { iso: 'PL-32', folder: 'Zachodniopomorskie', label: 'Zachodniopomorskie' }
 ];
 
 const rl = readline.createInterface({
@@ -57,19 +59,7 @@ function isTruthyTag(value) {
 
 function isBikePedWay(tags) {
   var highway = (tags.highway || '').toLowerCase();
-  var cycleway = (tags.cycleway || '').toLowerCase();
-  var cyclewayBoth = (tags['cycleway:both'] || '').toLowerCase();
-  var bicycle = (tags.bicycle || '').toLowerCase();
-  var foot = (tags.foot || '').toLowerCase();
-
-    if (/^(cycleway|path|footway|pedestrian|living_street|track|service)$/.test(highway)) {
-    return true;
-  }
-  if (cycleway && cycleway !== 'no') return true;
-  if (cyclewayBoth && cyclewayBoth !== 'no') return true;
-  if (isTruthyTag(bicycle) || isTruthyTag(foot)) return true;
-
-  return false;
+    return /^(cycleway|path|track|service)$/.test(highway);
 }
 
 function classifySurface(tags) {
@@ -146,6 +136,10 @@ function escapeCsv(text) {
   return stringified;
 }
 
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 function haversineDistance(lon1, lat1, lon2, lat2) {
   const R = 6371e3; // Promień Ziemi w metrach
   const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -157,96 +151,154 @@ function haversineDistance(lon1, lat1, lon2, lat2) {
   return R * c;
 }
 
-function resolveVoivodeshipFolder(geometry) {
-    if (!geometry || geometry.length === 0) {
-        return 'Nieprzypisane';
-    }
-
-    let latSum = 0;
-    let lonSum = 0;
-    for (let i = 0; i < geometry.length; i++) {
-        latSum += geometry[i].lat;
-        lonSum += geometry[i].lon;
-    }
-
-    const lat = latSum / geometry.length;
-    const lon = lonSum / geometry.length;
-
-    let bestMatch = null;
-    let bestDistance = Number.POSITIVE_INFINITY;
-
-    for (let i = 0; i < VOIVODESHIP_BBOXES.length; i++) {
-        const item = VOIVODESHIP_BBOXES[i];
-        const [south, west, north, east] = item.bbox;
-        if (lat < south || lat > north || lon < west || lon > east) {
-            continue;
-        }
-
-        const centerLat = (south + north) / 2;
-        const centerLon = (west + east) / 2;
-        const distance = Math.abs(lat - centerLat) + Math.abs(lon - centerLon);
-        if (distance < bestDistance) {
-            bestDistance = distance;
-            bestMatch = item.folder;
-        }
-    }
-
-    return bestMatch || 'Nieprzypisane';
-}
-
-function fetchAndStreamOverpassData(bbox, onlyBikePed, lineTypeFilterEnabled, includedLineTypes, onElement, onDone, onError) {
-    const [south, west, north, east] = bbox.split(',');
-    const timeout = bbox === POLAND_BBOX ? 900 : 180;
-    
-    let query = `[out:json][timeout:${timeout}][maxsize:2147483648];\n(\n`;
-
+function appendWayFilters(queryParts, locatorExpr, onlyBikePed, lineTypeFilterEnabled, includedLineTypes) {
     if (lineTypeFilterEnabled) {
         Object.keys(includedLineTypes).forEach(tk => {
             if (includedLineTypes[tk]) {
                 const parts = tk.split(':');
-                if(parts.length === 2) {
-                    query += `  way["${parts[0]}"="${parts[1]}"](${south},${west},${north},${east});\n`;
+                if (parts.length === 2) {
+                    queryParts.push(`  way["${parts[0]}"="${parts[1]}"]${locatorExpr};`);
                 }
             }
         });
-    } else if (!onlyBikePed) {
-        query += `  way["highway"](${south},${west},${north},${east});\n`;
-        query += `  way["railway"](${south},${west},${north},${east});\n`;
-        query += `  way["route"](${south},${west},${north},${east});\n`;
-    } else {
-        query += `  way["highway"="cycleway"](${south},${west},${north},${east});\n`;
-        query += `  way["highway"="path"](${south},${west},${north},${east});\n`;
-        query += `  way["highway"="footway"](${south},${west},${north},${east});\n`;
-        query += `  way["highway"="pedestrian"](${south},${west},${north},${east});\n`;
-        query += `  way["highway"="living_street"](${south},${west},${north},${east});\n`;
-        query += `  way["highway"="track"](${south},${west},${north},${east});\n`;
-        query += `  way["highway"="service"](${south},${west},${north},${east});\n`;
-        query += `  way["route"="bicycle"](${south},${west},${north},${east});\n`;
+        return;
     }
-    query += `);\n(._;>;);\nout geom;\n`;
+
+    if (!onlyBikePed) {
+        queryParts.push(`  way["highway"]${locatorExpr};`);
+        queryParts.push(`  way["railway"]${locatorExpr};`);
+        queryParts.push(`  way["route"]${locatorExpr};`);
+        return;
+    }
+
+    queryParts.push(`  way["highway"="cycleway"]${locatorExpr};`);
+    queryParts.push(`  way["highway"="path"]${locatorExpr};`);
+    queryParts.push(`  way["highway"="track"]${locatorExpr};`);
+    queryParts.push(`  way["highway"="service"]${locatorExpr};`);
+}
+
+function buildOverpassQueryByBbox(bbox, onlyBikePed, lineTypeFilterEnabled, includedLineTypes) {
+    const [south, west, north, east] = bbox.split(',');
+    const timeout = bbox === POLAND_BBOX ? 900 : 180;
+    const locatorExpr = `(${south},${west},${north},${east})`;
+
+    const queryParts = [`[out:json][timeout:${timeout}][maxsize:2147483648];`, '('];
+    appendWayFilters(queryParts, locatorExpr, onlyBikePed, lineTypeFilterEnabled, includedLineTypes);
+    queryParts.push(');');
+    queryParts.push('(._;>;);');
+    queryParts.push('out geom;');
+    return queryParts.join('\n');
+}
+
+function buildOverpassQueryByVoivodeship(isoCode, onlyBikePed, lineTypeFilterEnabled, includedLineTypes) {
+    const timeout = 900;
+    const locatorExpr = '(area.searchArea)';
+
+    const queryParts = [
+        `[out:json][timeout:${timeout}][maxsize:2147483648];`,
+        `relation["boundary"="administrative"]["admin_level"="4"]["ISO3166-2"="${isoCode}"]->.admin;`,
+        '.admin map_to_area -> .searchArea;',
+        '('
+    ];
+    appendWayFilters(queryParts, locatorExpr, onlyBikePed, lineTypeFilterEnabled, includedLineTypes);
+    queryParts.push(');');
+    queryParts.push('(._;>;);');
+    queryParts.push('out geom;');
+    return queryParts.join('\n');
+}
+
+function fetchAndStreamOverpassData(query, onElement, onDone, onError) {
 
     const postData = `data=${encodeURIComponent(query)}`;
     const isHttps = OVERPASS_URL.startsWith('https');
     const client = isHttps ? https : http;
     const urlObj = new URL(OVERPASS_URL);
 
+    let finished = false;
+    let hardTimeoutHandle = null;
+    const finishWithError = (err) => {
+        if (finished) return;
+        finished = true;
+        if (hardTimeoutHandle) clearTimeout(hardTimeoutHandle);
+        onError(err);
+    };
+    const finishWithDone = () => {
+        if (finished) return;
+        finished = true;
+        if (hardTimeoutHandle) clearTimeout(hardTimeoutHandle);
+        onDone();
+    };
+
     const req = client.request(urlObj, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Content-Length': Buffer.byteLength(postData) }
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Content-Length': Buffer.byteLength(postData),
+            'Accept': 'application/json, text/plain;q=0.9, */*;q=0.8'
+        }
     }, (res) => {
-        if (res.statusCode < 200 || res.statusCode >= 300) return onError(new Error(`API returned status code ${res.statusCode}`));
+        if (res.statusCode < 200 || res.statusCode >= 300) {
+            let errorBody = '';
+            res.on('data', (chunk) => {
+                if (errorBody.length < 4096) {
+                    errorBody += chunk.toString('utf8');
+                }
+            });
+            res.on('end', () => {
+                const compactBody = (errorBody || '').replace(/\s+/g, ' ').trim();
+                const bodyPreview = compactBody ? ` | body: ${compactBody.slice(0, 500)}` : '';
+                finishWithError(new Error(`API returned status code ${res.statusCode}${bodyPreview}`));
+            });
+            return;
+        }
         
         console.log("\nDownloading and streaming elements directly to disk (this avoids RAM limits)...");
-        
-        const parser = JSONStream.parse('elements.*');
-        res.pipe(parser);
-        
-        parser.on('data', onElement);
-        parser.on('end', onDone);
-        parser.on('error', onError);
+
+        let firstChunkHandled = false;
+        res.once('data', (firstChunk) => {
+            firstChunkHandled = true;
+            const firstText = firstChunk.toString('utf8');
+            const firstNonWs = firstText.replace(/^\s+/, '');
+
+            if (firstNonWs.startsWith('<')) {
+                let xmlBody = firstText;
+                res.on('data', (chunk) => {
+                    if (xmlBody.length < 4096) {
+                        xmlBody += chunk.toString('utf8');
+                    }
+                });
+                res.on('end', () => {
+                    const compactBody = xmlBody.replace(/\s+/g, ' ').trim();
+                    finishWithError(new Error(`API returned XML/HTML instead of JSON: ${compactBody.slice(0, 500)}`));
+                });
+                return;
+            }
+
+            const parser = JSONStream.parse('elements.*');
+            parser.on('data', onElement);
+            parser.on('end', finishWithDone);
+            parser.on('error', finishWithError);
+
+            parser.write(firstChunk);
+            res.pipe(parser);
+        });
+
+        res.on('end', () => {
+            if (!firstChunkHandled) {
+                finishWithDone();
+            }
+        });
     });
-    
-    req.on('error', onError);
+
+    req.setTimeout(OVERPASS_REQUEST_TIMEOUT_MS, () => {
+        req.destroy(new Error(`Request timed out after ${OVERPASS_REQUEST_TIMEOUT_MS}ms`));
+    });
+
+    hardTimeoutHandle = setTimeout(() => {
+        req.destroy(new Error(`Hard request timeout after ${OVERPASS_REQUEST_TIMEOUT_MS}ms`));
+    }, OVERPASS_REQUEST_TIMEOUT_MS);
+
+    req.on('error', finishWithError);
     req.write(postData);
     req.end();
 }
@@ -318,10 +370,10 @@ async function run() {
           console.log("-> Selected ALL categories.");
       }
 
-      const filterChoice = await askQuestion("\nDo you want to limit export ONLY to sidewalks / bicycle roads & paths + driveways/service roads?\nChoose [y/N] (default y): ");
+      const filterChoice = await askQuestion("\nDo you want to limit export ONLY to bicycle roads + paths + tracks/service roads + driveways/service roads?\nChoose [y/N] (default y): ");
       onlyBikePed = filterChoice.trim().toLowerCase() !== 'n';
       if(onlyBikePed) {
-          console.log("-> Limiting to sidewalks / bicycle roads & paths + driveways/service roads.");
+          console.log("-> Limiting to bicycle roads, paths, tracks/service roads and driveways/service roads.");
       } else {
           console.log("-> Exporting ALL relevant lines.");
       }
@@ -353,26 +405,41 @@ async function run() {
 
   try {
       let matchedCount = 0;
-      
-      const allWays = [];
-      const coordToWayIds = new Map();
-      
-      const ufParent = [];
-      const find = (i) => {
-          if (ufParent[i] === i) return i;
-          return ufParent[i] = find(ufParent[i]);
-      };
-      const union = (i, j) => {
-          const rootI = find(i);
-          const rootJ = find(j);
-          if (rootI !== rootJ) {
-              ufParent[rootI] = rootJ;
-          }
-      };
+      let totalGeneratedFiles = 0;
+      let totalRejectedCount = 0;
+      let totalKeptCount = 0;
 
-      fetchAndStreamOverpassData(bbox, onlyBikePed, lineTypeFilterEnabled, includedLineTypes, 
-          // onElement
-          (el) => {
+      const sciezkiDir = path.join(exportDir, 'Sciezki_Rowerowe');
+      const inneDir = path.join(exportDir, 'Inne_Drogi');
+      if (!fs.existsSync(sciezkiDir)) fs.mkdirSync(sciezkiDir);
+      if (!fs.existsSync(inneDir)) fs.mkdirSync(inneDir);
+
+      const MIN_LENGTH_BY_GROUP = {
+          'Sciezki_Rowerowe': 75.0,
+          'Inne_Drogi': 400.0,
+      };
+      const MAX_FILE_BYTES = 20 * 1024 * 1024;
+      const MAX_GEOMS_PER_ROW = 800;
+      const CSV_HEADER = 'WKT,Typ ścieżki\n';
+
+      const createBatchState = (forcedVoivodeshipFolder) => {
+          const ways = [];
+          const coordToWayIds = new Map();
+          const ufParent = [];
+
+          const find = (i) => {
+              if (ufParent[i] === i) return i;
+              return ufParent[i] = find(ufParent[i]);
+          };
+          const union = (i, j) => {
+              const rootI = find(i);
+              const rootJ = find(j);
+              if (rootI !== rootJ) {
+                  ufParent[rootI] = rootJ;
+              }
+          };
+
+          const handleElement = (el) => {
               if (!el || el.type !== 'way' || !el.geometry || el.geometry.length < 2) return;
 
               const tags = el.tags || {};
@@ -383,7 +450,6 @@ async function run() {
               if (allowedCategories.length > 0 && !allowedCategories.includes(category)) return;
 
               matchedCount++;
-              
               if (matchedCount % 5000 === 0) {
                   process.stdout.write(`\rOdbieranie ścieżek przez strumień i analiza... ${matchedCount}`);
               }
@@ -394,27 +460,26 @@ async function run() {
                   coords.push(`${el.geometry[g].lon} ${el.geometry[g].lat}`);
                   if (g > 0) {
                       wayLength += haversineDistance(
-                          el.geometry[g-1].lon, el.geometry[g-1].lat,
+                          el.geometry[g - 1].lon, el.geometry[g - 1].lat,
                           el.geometry[g].lon, el.geometry[g].lat
                       );
                   }
               }
+
               const geomStr = `(${coords.join(', ')})`;
-              
               let plCategory = polishFileCategory[category] || category;
               let plHighway = polishHighway[tags.highway] || tags.highway || '';
               let routeGroup = (tags.highway === 'cycleway' || tags.highway === 'path') ? 'Sciezki_Rowerowe' : 'Inne_Drogi';
               let fileGroupKey = `${plCategory}_${routeGroup}`;
               let subKey = plHighway;
+              const voivodeshipFolder = splitByVoivodeship ? (forcedVoivodeshipFolder || 'Nieprzypisane') : null;
 
-              const voivodeshipFolder = splitByVoivodeship ? resolveVoivodeshipFolder(el.geometry) : null;
-
-              const index = allWays.length;
-              allWays.push({ geomStr, length: wayLength, subKey, fileGroupKey, voivodeshipFolder });
+              const index = ways.length;
+              ways.push({ geomStr, length: wayLength, subKey, fileGroupKey, voivodeshipFolder });
               ufParent.push(index);
 
               for (let c = 0; c < coords.length; c++) {
-                  const ptWithGroup = coords[c] + "|" + routeGroup;
+                  const ptWithGroup = coords[c] + '|' + routeGroup;
                   const existing = coordToWayIds.get(ptWithGroup);
                   if (existing !== undefined) {
                       if (typeof existing === 'number') {
@@ -428,130 +493,173 @@ async function run() {
                       coordToWayIds.set(ptWithGroup, index);
                   }
               }
-          },
-          // onDone
-          () => {
-              console.log(`\nZakończono pobieranie pamięci. Pasujących odcinków: ${matchedCount}. Analizowanie topologii sieci (Union-Find)...`);
-              
-              const componentLength = new Float64Array(allWays.length);
-              for (let i = 0; i < allWays.length; i++) {
-                  const root = find(i);
-                  componentLength[root] += allWays[i].length;
-              }
+          };
 
-              const groups = {};
+          return { ways, find, handleElement };
+      };
 
-              let rejectedCount = 0;
-              let keptCount = 0;
-
-              const MIN_LENGTH_BY_GROUP = {
-                  'Sciezki_Rowerowe': 75.0,
-                  'Inne_Drogi': 400.0,
-              };
-
-              for (let i = 0; i < allWays.length; i++) {
-                  const way = allWays[i];
-                  const root = find(i);
-                  const routeGroup = way.fileGroupKey.includes('Sciezki_Rowerowe') ? 'Sciezki_Rowerowe' : 'Inne_Drogi';
-                  const minLength = MIN_LENGTH_BY_GROUP[routeGroup] ?? 75.0;
-                  const isAccepted = componentLength[root] >= minLength;
-
-                  if (!isAccepted) {
-                      rejectedCount++;
-                      continue; // po prostu pomijamy śmieci, nie zapisujemy
-                  }
-                  keptCount++;
-
-                  var groupStorageKey = splitByVoivodeship ? (way.voivodeshipFolder + '|' + way.fileGroupKey) : way.fileGroupKey;
-
-                  if (!groups[groupStorageKey]) groups[groupStorageKey] = {};
-                  if (!groups[groupStorageKey][way.subKey]) groups[groupStorageKey][way.subKey] = [];
-                  groups[groupStorageKey][way.subKey].push(way.geomStr);
-              }
-
-              console.log(`Odrzucono ${rejectedCount} mikroskopijnych odłamków (<75m). Scalanie ${keptCount} odcinków do plików CSV...`);
-              
-              const MAX_FILE_BYTES = 20 * 1024 * 1024; // 20 MB
-              const MAX_GEOMS_PER_ROW = 800;
-              let totalGeneratedFiles = 0;
-              
-              const sciezkiDir = path.join(exportDir, "Sciezki_Rowerowe");
-              const inneDir = path.join(exportDir, "Inne_Drogi");
-              
-              if (!fs.existsSync(sciezkiDir)) fs.mkdirSync(sciezkiDir);
-              if (!fs.existsSync(inneDir)) fs.mkdirSync(inneDir);
-
-              const CSV_HEADER = "WKT,Typ ścieżki\n";
-
-              Object.keys(groups).forEach(storageKey => {
-                  const metadataGroups = groups[storageKey];
-                  let currentFileIndex = 1;
-                  let currentFileBytes = 0;
-
-                  let fileGroupKey = storageKey;
-                  let voivodeshipFolder = null;
-                  if (splitByVoivodeship) {
-                      const separatorIndex = storageKey.indexOf('|');
-                      if (separatorIndex > -1) {
-                          voivodeshipFolder = storageKey.slice(0, separatorIndex);
-                          fileGroupKey = storageKey.slice(separatorIndex + 1);
-                      }
-                  }
-
-                  let targetSubDir = fileGroupKey.includes('Sciezki_Rowerowe') ? sciezkiDir : inneDir;
-                  if (splitByVoivodeship && voivodeshipFolder) {
-                      targetSubDir = path.join(targetSubDir, voivodeshipFolder);
-                  }
-                  if (!fs.existsSync(targetSubDir)) {
-                      fs.mkdirSync(targetSubDir, { recursive: true });
-                  }
-
-                  let filePath = path.join(targetSubDir, `${fileGroupKey}_${currentFileIndex}.csv`);
-                  fs.writeFileSync(filePath, CSV_HEADER, 'utf8');
-                  currentFileBytes = Buffer.byteLength(CSV_HEADER, 'utf8');
-                  totalGeneratedFiles++;
-
-                  Object.keys(metadataGroups).forEach(highway => {
-                      const geomCollection = metadataGroups[highway];
-
-                      for (let i = 0; i < geomCollection.length; i += MAX_GEOMS_PER_ROW) {
-                          const chunkGeoms = geomCollection.slice(i, i + MAX_GEOMS_PER_ROW);
-                          const wkt = `MULTILINESTRING(${chunkGeoms.join(', ')})`;
-
-                          const row = escapeCsv(wkt) + ',' + escapeCsv(highway) + "\n";
-
-                          const rowBytes = Buffer.byteLength(row, 'utf8');
-
-                          if (currentFileBytes + rowBytes > MAX_FILE_BYTES) {
-                              currentFileIndex++;
-                              currentFileBytes = Buffer.byteLength(CSV_HEADER, 'utf8');
-                              filePath = path.join(targetSubDir, `${fileGroupKey}_${currentFileIndex}.csv`);
-                              fs.writeFileSync(filePath, CSV_HEADER, 'utf8');
-                              totalGeneratedFiles++;
-                          }
-
-                          fs.appendFileSync(filePath, row, 'utf8');
-                          currentFileBytes += rowBytes;
-                      }
-                  });
-              });
-
-              console.log(`\nWyeksportowano poprawnie do ${totalGeneratedFiles} pliku/ach! 🎉`);
-              if (splitByVoivodeship) {
-                  console.log(`Pliki zostały podzielone na wojewodztwa i umieszczone w podfolderach wewnatrz: ${exportDir}`);
-              } else {
-                  console.log(`Pliki zostały umieszczone w podfolderach wewnątrz: ${exportDir}`);
-              }
-              rl.close();
-              process.exit(0);
-          },
-          // onError
-          (err) => {
-              console.error(`\n[ERROR]: ${err.message}`);
-              rl.close();
-              process.exit(1);
+      const processBatchAndWriteFiles = (ways, find) => {
+          if (ways.length === 0) {
+              return { rejectedCount: 0, keptCount: 0, generatedFiles: 0 };
           }
-      );
+
+          const componentLength = new Float64Array(ways.length);
+          for (let i = 0; i < ways.length; i++) {
+              const root = find(i);
+              componentLength[root] += ways[i].length;
+          }
+
+          const groups = {};
+          let rejectedCount = 0;
+          let keptCount = 0;
+
+          for (let i = 0; i < ways.length; i++) {
+              const way = ways[i];
+              const root = find(i);
+              const routeGroup = way.fileGroupKey.includes('Sciezki_Rowerowe') ? 'Sciezki_Rowerowe' : 'Inne_Drogi';
+              const minLength = MIN_LENGTH_BY_GROUP[routeGroup] ?? 75.0;
+              const isAccepted = componentLength[root] >= minLength;
+
+              if (!isAccepted) {
+                  rejectedCount++;
+                  continue;
+              }
+              keptCount++;
+
+              var groupStorageKey = splitByVoivodeship ? (way.voivodeshipFolder + '|' + way.fileGroupKey) : way.fileGroupKey;
+
+              if (!groups[groupStorageKey]) groups[groupStorageKey] = {};
+              if (!groups[groupStorageKey][way.subKey]) groups[groupStorageKey][way.subKey] = [];
+              groups[groupStorageKey][way.subKey].push(way.geomStr);
+          }
+
+          let generatedFiles = 0;
+          Object.keys(groups).forEach(storageKey => {
+              const metadataGroups = groups[storageKey];
+              let currentFileIndex = 1;
+              let currentFileBytes = 0;
+
+              let fileGroupKey = storageKey;
+              let voivodeshipFolder = null;
+              if (splitByVoivodeship) {
+                  const separatorIndex = storageKey.indexOf('|');
+                  if (separatorIndex > -1) {
+                      voivodeshipFolder = storageKey.slice(0, separatorIndex);
+                      fileGroupKey = storageKey.slice(separatorIndex + 1);
+                  }
+              }
+
+              let targetSubDir = fileGroupKey.includes('Sciezki_Rowerowe') ? sciezkiDir : inneDir;
+              if (splitByVoivodeship && voivodeshipFolder) {
+                  targetSubDir = path.join(targetSubDir, voivodeshipFolder);
+              }
+              if (!fs.existsSync(targetSubDir)) {
+                  fs.mkdirSync(targetSubDir, { recursive: true });
+              }
+
+              let filePath = path.join(targetSubDir, `${fileGroupKey}_${currentFileIndex}.csv`);
+              fs.writeFileSync(filePath, CSV_HEADER, 'utf8');
+              currentFileBytes = Buffer.byteLength(CSV_HEADER, 'utf8');
+              generatedFiles++;
+
+              Object.keys(metadataGroups).forEach(highway => {
+                  const geomCollection = metadataGroups[highway];
+
+                  for (let i = 0; i < geomCollection.length; i += MAX_GEOMS_PER_ROW) {
+                      const chunkGeoms = geomCollection.slice(i, i + MAX_GEOMS_PER_ROW);
+                      const wkt = `MULTILINESTRING(${chunkGeoms.join(', ')})`;
+                      const row = escapeCsv(wkt) + ',' + escapeCsv(highway) + '\n';
+                      const rowBytes = Buffer.byteLength(row, 'utf8');
+
+                      if (currentFileBytes + rowBytes > MAX_FILE_BYTES) {
+                          currentFileIndex++;
+                          currentFileBytes = Buffer.byteLength(CSV_HEADER, 'utf8');
+                          filePath = path.join(targetSubDir, `${fileGroupKey}_${currentFileIndex}.csv`);
+                          fs.writeFileSync(filePath, CSV_HEADER, 'utf8');
+                          generatedFiles++;
+                      }
+
+                      fs.appendFileSync(filePath, row, 'utf8');
+                      currentFileBytes += rowBytes;
+                  }
+              });
+          });
+
+          return { rejectedCount, keptCount, generatedFiles };
+      };
+
+      const fetchByQuery = (query, forcedVoivodeshipFolder) => {
+          const runFetchAttempt = () => {
+              return new Promise((resolve, reject) => {
+                  const batchState = createBatchState(forcedVoivodeshipFolder);
+                  fetchAndStreamOverpassData(
+                      query,
+                      (el) => batchState.handleElement(el),
+                      () => resolve(batchState),
+                      reject
+                  );
+              });
+          };
+
+          return (async () => {
+              let lastError = null;
+              for (let attempt = 1; attempt <= OVERPASS_MAX_RETRIES; attempt++) {
+                  try {
+                      const batchState = await runFetchAttempt();
+                      return batchState;
+                  } catch (err) {
+                      lastError = err;
+                      if (attempt >= OVERPASS_MAX_RETRIES) {
+                          break;
+                      }
+                      const waitMs = attempt * 5000;
+                      console.log(`Zapytanie nie powiodlo sie (proba ${attempt}/${OVERPASS_MAX_RETRIES}): ${err.message}`);
+                      console.log(`Ponowienie za ${Math.round(waitMs / 1000)}s...`);
+                      await sleep(waitMs);
+                  }
+              }
+              throw lastError;
+          })();
+      };
+
+      if (splitByVoivodeship) {
+          console.log('Podzial po wojewodztwach: pobieranie po dokladnych granicach administracyjnych (Overpass area).');
+          for (let i = 0; i < VOIVODESHIPS.length; i++) {
+              const voivodeship = VOIVODESHIPS[i];
+              console.log(`\n[${i + 1}/${VOIVODESHIPS.length}] Pobieranie: ${voivodeship.label} (${voivodeship.iso})...`);
+              const query = buildOverpassQueryByVoivodeship(
+                  voivodeship.iso,
+                  onlyBikePed,
+                  lineTypeFilterEnabled,
+                  includedLineTypes
+              );
+              const batchState = await fetchByQuery(query, voivodeship.folder);
+              const stats = processBatchAndWriteFiles(batchState.ways, batchState.find);
+              totalRejectedCount += stats.rejectedCount;
+              totalKeptCount += stats.keptCount;
+              totalGeneratedFiles += stats.generatedFiles;
+          }
+      } else {
+          const query = buildOverpassQueryByBbox(bbox, onlyBikePed, lineTypeFilterEnabled, includedLineTypes);
+          const batchState = await fetchByQuery(query, null);
+          const stats = processBatchAndWriteFiles(batchState.ways, batchState.find);
+          totalRejectedCount += stats.rejectedCount;
+          totalKeptCount += stats.keptCount;
+          totalGeneratedFiles += stats.generatedFiles;
+      }
+
+      console.log(`\nZakończono pobieranie pamięci. Pasujących odcinków: ${matchedCount}.`);
+      console.log(`Odrzucono ${totalRejectedCount} mikroskopijnych odłamków (<75m). Scalanie ${totalKeptCount} odcinków do plików CSV...`);
+
+      console.log(`\nWyeksportowano poprawnie do ${totalGeneratedFiles} pliku/ach! 🎉`);
+      if (splitByVoivodeship) {
+          console.log(`Pliki zostały podzielone na wojewodztwa i umieszczone w podfolderach wewnatrz: ${exportDir}`);
+      } else {
+          console.log(`Pliki zostały umieszczone w podfolderach wewnątrz: ${exportDir}`);
+      }
+      rl.close();
+      process.exit(0);
+
   } catch (err) {
       console.error(`\n[ERROR]: ${err.message}`);
       rl.close();

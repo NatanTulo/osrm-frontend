@@ -6,3 +6,5 @@ bundle.js.LICENSE.txt
 bundle.js.map
 bundle*raw*
 dist/
+bundle*map
+exports/
