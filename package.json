@@ -11,7 +11,8 @@
     "compile": "vite build && node -e \"const fs=require('fs'); if (fs.existsSync('dist/bundle.js')) fs.copyFileSync('dist/bundle.js', 'bundle.js'); if (fs.existsSync('dist/bundle.js.map')) fs.copyFileSync('dist/bundle.js.map', 'bundle.js.map');\"",
     "build": "npm run clean && npm run replace && npm run compile && node -e \"const fs=require('fs'); fs.copyFileSync('node_modules/leaflet/dist/leaflet.css','css/leaflet.css'); ['index.html','favicon.ico','css','fonts','images','i18n','debug'].forEach(p => { if (fs.existsSync(p)) fs.cpSync(p, 'dist/' + p, {recursive: true}); });\"",
     "start": "npm run build && vite preview",
-    "start-prod": "npm run build && vite preview",
+    "export:gmaps": "node ./scripts/export_to_gmaps.js",
+    "export:diff": "node ./scripts/export_diff_to_gmaps.js",
     "prepub": "npm run build"
   },
   "repository": {
