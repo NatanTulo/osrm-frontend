@@ -65,7 +65,6 @@ var ItineraryBuilder = require('./itinerary_builder')(mergedOptions.language);
 
 var mapLayer = leafletOptions.layer;
 var overlay = leafletOptions.overlay;
-<<<<<<< HEAD
 // Track whether the Bike overlay was auto-enabled by profile selection
 var bikeOverlayOriginallyActive = false;
 var baselayer;
